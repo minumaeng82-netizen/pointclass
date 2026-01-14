@@ -1,0 +1,13 @@
+
+export const POINT_RULES = {
+  BASIC_MISSION: 3,
+  QUESTION_CREATE: 1,
+  ANSWER_CREATE: 1,
+  BEST_ANSWER: 2,
+  QUIZ_FIRST_TRY: 1,
+  QUIZ_SECOND_TRY: 0.5,
+  MONTHLY_MISSION_REWARD: 10,
+};
+
+export const CLAIM_MIN_KRW = 5000;
+export const POINT_TO_KRW = 100; // 1P = 100 KRW logic (optional)

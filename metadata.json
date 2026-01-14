@@ -1,0 +1,7 @@
+{
+  "name": "Science Class Master",
+  "description": "A comprehensive classroom management tool for science teachers, focusing on attendance, pre-routines, quizzes, and a reward-based point system.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
