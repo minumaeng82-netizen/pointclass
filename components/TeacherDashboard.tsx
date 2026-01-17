@@ -3,8 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { User, Session, Class, Attendance, PreRoutine, Warning, Question, Answer, PointRecord } from '../types';
 import { ScienceStore } from '../store';
 import { POINT_RULES } from '../constants';
-import { 
-  Users, PlayCircle, StopCircle, Bell, MessageSquare, 
+import {
+  Users, PlayCircle, StopCircle, Bell, MessageSquare,
   HelpCircle, ShoppingCart, Settings, LogOut, Star, CheckCircle, XCircle,
   Plus, Trash2, Key, Eye, EyeOff, Save
 } from 'lucide-react';
@@ -18,7 +18,7 @@ const TeacherDashboard: React.FC<Props> = ({ user, onLogout }) => {
   const [activeTab, setActiveTab] = useState<'status' | 'students' | 'board' | 'quiz' | 'store' | 'settings'>('status');
   const [selectedClass, setSelectedClass] = useState<Class>(ScienceStore.getClasses()[0]);
   const [activeSession, setActiveSession] = useState<Session | null>(null);
-  
+
   // Data States
   const [students, setStudents] = useState<User[]>([]);
   const [attendances, setAttendances] = useState<Attendance[]>([]);
@@ -33,6 +33,15 @@ const TeacherDashboard: React.FC<Props> = ({ user, onLogout }) => {
   const [newStudentNo, setNewStudentNo] = useState<number>(0);
   const [visiblePins, setVisiblePins] = useState<Record<string, boolean>>({});
 
+  // Class Creation State
+  const [showClassModal, setShowClassModal] = useState(false);
+  const [classStep, setClassStep] = useState(1);
+  const [newClassGrade, setNewClassGrade] = useState('3');
+  const [newClassNumber, setNewClassNumber] = useState('1');
+  const [newClassStudentCount, setNewClassStudentCount] = useState(20);
+  const [previewStudents, setPreviewStudents] = useState<User[]>([]);
+  const [createError, setCreateError] = useState<string | null>(null);
+
   useEffect(() => {
     refreshData();
   }, [selectedClass]);
@@ -45,6 +54,8 @@ const TeacherDashboard: React.FC<Props> = ({ user, onLogout }) => {
     setWarnings(ScienceStore.getWarnings());
     setQuestions(ScienceStore.getQuestions());
     setAnswers(ScienceStore.getAnswers());
+    // Also refresh classes list just in case
+    // (This is redundant if activeTab renders them directly from store, but good for sync)
   };
 
   const startSession = () => {
@@ -117,6 +128,82 @@ const TeacherDashboard: React.FC<Props> = ({ user, onLogout }) => {
     }
     ScienceStore.saveWarnings(currentWarnings);
     refreshData();
+    refreshData();
+  };
+
+  const generatePreviewStudents = () => {
+    setCreateError(null);
+    const classId = `${newClassGrade}-${newClassNumber}`;
+
+    // Check duplicate before generating
+    const currentClasses = ScienceStore.getClasses();
+    if (currentClasses.some(c => c.id === classId)) {
+      setCreateError('이미 존재하는 반입니다. (학년/반 확인)');
+      return;
+    }
+
+    const newStudents: User[] = Array.from({ length: newClassStudentCount }, (_, i) => ({
+      id: `S-${classId}-${i + 1}`,
+      role: 'student',
+      name: `학생 ${i + 1}`,
+      classId: classId,
+      studentNo: i + 1,
+      pin: '0000',
+      isFirstLogin: true
+    }));
+    setPreviewStudents(newStudents);
+    setClassStep(2);
+  };
+
+  const handleCreateClass = () => {
+    try {
+      const classId = `${newClassGrade}-${newClassNumber}`;
+      const className = `${newClassGrade}학년 ${newClassNumber}반`;
+
+      console.log('Creating class:', classId, className);
+
+      // Save Class
+      const currentClasses = ScienceStore.getClasses();
+      if (currentClasses.some(c => c.id === classId)) {
+        setCreateError('이미 존재하는 학급입니다.');
+        return;
+      }
+      ScienceStore.saveClasses([...currentClasses, { id: classId, name: className }]);
+
+      // Save Students
+      const currentStudents = ScienceStore.getStudents();
+      console.log('Adding students:', previewStudents.length);
+      ScienceStore.saveStudents([...currentStudents, ...previewStudents]);
+
+      // Reset and Close
+      setShowClassModal(false);
+      setClassStep(1);
+      setPreviewStudents([]);
+      setCreateError(null);
+      refreshData();
+      alert(`${className}이 생성되었습니다.`);
+    } catch (e) {
+      console.error('Failed to create class:', e);
+      setCreateError('학급 생성 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleDeleteClass = (classId: string) => {
+    if (!confirm('학급을 삭제하면 소속 학생과 데이터가 모두 삭제됩니다. 계속하시겠습니까?')) return;
+
+    const currentClasses = ScienceStore.getClasses().filter(c => c.id !== classId);
+    ScienceStore.saveClasses(currentClasses);
+
+    // Clean up students
+    const currentStudents = ScienceStore.getStudents().filter(s => s.classId !== classId);
+    ScienceStore.saveStudents(currentStudents);
+
+    // Select another class if current one is deleted
+    if (selectedClass.id === classId && currentClasses.length > 0) {
+      setSelectedClass(currentClasses[0]);
+    }
+
+    refreshData();
   };
 
   return (
@@ -129,7 +216,7 @@ const TeacherDashboard: React.FC<Props> = ({ user, onLogout }) => {
           </div>
           <h1 className="hidden lg:block text-xl font-bold">과학실 마스터</h1>
         </div>
-        
+
         <nav className="flex-1 space-y-1">
           {[
             { id: 'status', label: '수업 현황', icon: <Users size={20} /> },
@@ -137,6 +224,7 @@ const TeacherDashboard: React.FC<Props> = ({ user, onLogout }) => {
             { id: 'board', label: '질문/답변', icon: <MessageSquare size={20} /> },
             { id: 'quiz', label: '형성평가', icon: <HelpCircle size={20} /> },
             { id: 'store', label: '상점 POS', icon: <ShoppingCart size={20} /> },
+            { id: 'settings', label: '설정', icon: <Settings size={20} /> },
           ].map(tab => (
             <button
               key={tab.id}
@@ -159,7 +247,7 @@ const TeacherDashboard: React.FC<Props> = ({ user, onLogout }) => {
       <div className="flex-1 flex flex-col bg-gray-50">
         <header className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm z-10">
           <div className="flex items-center gap-4">
-            <select 
+            <select
               className="bg-gray-100 border-none rounded-lg px-3 py-2 font-bold text-gray-700"
               value={selectedClass.id}
               onChange={(e) => {
@@ -172,14 +260,14 @@ const TeacherDashboard: React.FC<Props> = ({ user, onLogout }) => {
           </div>
           <div className="flex items-center gap-3">
             {!activeSession ? (
-              <button 
+              <button
                 onClick={startSession}
                 className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 hover:bg-indigo-700 transition shadow-md font-bold"
               >
                 <PlayCircle size={20} /> 수업 시작
               </button>
             ) : (
-              <button 
+              <button
                 onClick={endSession}
                 className="bg-red-600 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 hover:bg-red-700 transition shadow-md font-bold"
               >
@@ -254,7 +342,7 @@ const TeacherDashboard: React.FC<Props> = ({ user, onLogout }) => {
             <div className="space-y-6">
               <div className="flex justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
                 <h3 className="text-xl font-bold">학급 학생 명부</h3>
-                <button 
+                <button
                   onClick={() => setShowAddModal(true)}
                   className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 hover:bg-indigo-700 transition font-bold"
                 >
@@ -273,7 +361,7 @@ const TeacherDashboard: React.FC<Props> = ({ user, onLogout }) => {
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {students.sort((a,b) => (a.studentNo || 0) - (b.studentNo || 0)).map(s => (
+                    {students.sort((a, b) => (a.studentNo || 0) - (b.studentNo || 0)).map(s => (
                       <tr key={s.id} className="hover:bg-gray-50 transition">
                         <td className="px-6 py-4 font-black text-indigo-600">{s.studentNo}</td>
                         <td className="px-6 py-4 font-bold text-gray-800">{s.name}</td>
@@ -282,13 +370,13 @@ const TeacherDashboard: React.FC<Props> = ({ user, onLogout }) => {
                             <span className="font-mono bg-gray-100 px-3 py-1 rounded text-lg font-bold">
                               {visiblePins[s.id] ? s.pin : '****'}
                             </span>
-                            <button 
-                              onClick={() => setVisiblePins(prev => ({...prev, [s.id]: !prev[s.id]}))}
+                            <button
+                              onClick={() => setVisiblePins(prev => ({ ...prev, [s.id]: !prev[s.id] }))}
                               className="text-gray-400 hover:text-indigo-600 transition"
                             >
                               {visiblePins[s.id] ? <EyeOff size={18} /> : <Eye size={18} />}
                             </button>
-                            <button 
+                            <button
                               onClick={() => {
                                 const newP = prompt('새 비밀번호 4자리를 입력하세요:', '0000');
                                 if (newP && newP.length === 4) updateStudentPin(s.id, newP);
@@ -301,7 +389,7 @@ const TeacherDashboard: React.FC<Props> = ({ user, onLogout }) => {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <button 
+                          <button
                             onClick={() => deleteStudent(s.id)}
                             className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition"
                           >
@@ -317,8 +405,160 @@ const TeacherDashboard: React.FC<Props> = ({ user, onLogout }) => {
           )}
 
           {/* ... other tabs like board, quiz, store remain similar to the previous version ... */}
+
+          {activeTab === 'settings' && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                <h3 className="text-xl font-bold">학급 관리</h3>
+                <button
+                  onClick={() => {
+                    setClassStep(1);
+                    setShowClassModal(true);
+                  }}
+                  className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 hover:bg-indigo-700 transition font-bold"
+                >
+                  <Plus size={20} /> 학급 생성
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {ScienceStore.getClasses().map(cls => {
+                  const studentCount = ScienceStore.getStudents(cls.id).length;
+                  return (
+                    <div key={cls.id} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col justify-between h-48">
+                      <div>
+                        <h4 className="text-xl font-bold text-gray-800 mb-2">{cls.name}</h4>
+                        <p className="text-gray-500 font-medium">학생 수: {studentCount}명</p>
+                      </div>
+                      <div className="flex justify-end">
+                        <button
+                          onClick={() => handleDeleteClass(cls.id)}
+                          className="px-4 py-2 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition font-bold text-sm"
+                        >
+                          학급 삭제
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </main>
       </div>
+
+      {/* Class Creation Modal */}
+      {showClassModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+            {classStep === 1 ? (
+              <>
+                <h3 className="text-2xl font-black mb-6">새 학급 만들기</h3>
+                <div className="grid grid-cols-2 gap-6 mb-6">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-500 mb-2">학년</label>
+                    <select
+                      value={newClassGrade}
+                      onChange={(e) => setNewClassGrade(e.target.value)}
+                      className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl font-bold"
+                    >
+                      {[3, 4, 5, 6].map(g => <option key={g} value={g}>{g}학년</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-500 mb-2">반</label>
+                    <select
+                      value={newClassNumber}
+                      onChange={(e) => setNewClassNumber(e.target.value)}
+                      className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl font-bold"
+                    >
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map(n =>
+                        <option key={n} value={n}>{n}반</option>
+                      )}
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-bold text-gray-500 mb-2">학생 수</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={newClassStudentCount}
+                      onChange={(e) => setNewClassStudentCount(parseInt(e.target.value))}
+                      className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl font-bold"
+                    />
+                  </div>
+                </div>
+
+                {createError && (
+                  <div className="bg-red-50 text-red-600 p-3 rounded-xl mb-6 font-bold text-center border border-red-100">
+                    {createError}
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowClassModal(false)}
+                    className="flex-1 py-3 bg-gray-100 text-gray-500 rounded-xl font-bold"
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={generatePreviewStudents}
+                    className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-200"
+                  >
+                    다음 (학생 명부 생성)
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-2xl font-black mb-2">{newClassGrade}학년 {newClassNumber}반 학생 명부</h3>
+                <p className="text-gray-500 mb-6 font-medium">학생들의 이름을 수정해주세요. (자동 저장됩니다)</p>
+
+                <div className="grid grid-cols-2 gap-3 mb-8 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
+                  {previewStudents.map((student, idx) => (
+                    <div key={student.id} className="flex items-center gap-3 bg-gray-50 p-3 rounded-xl">
+                      <span className="w-8 font-black text-gray-400">{student.studentNo}</span>
+                      <input
+                        type="text"
+                        value={student.name}
+                        onChange={(e) => {
+                          const newStats = [...previewStudents];
+                          newStats[idx].name = e.target.value;
+                          setPreviewStudents(newStats);
+                        }}
+                        className="flex-1 bg-transparent font-bold text-gray-800 outline-none border-b border-transparent focus:border-indigo-500"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {createError && (
+                  <div className="bg-red-50 text-red-600 p-3 rounded-xl mb-6 font-bold text-center border border-red-100">
+                    {createError}
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setClassStep(1)}
+                    className="flex-1 py-3 bg-gray-100 text-gray-500 rounded-xl font-bold"
+                  >
+                    이전
+                  </button>
+                  <button
+                    onClick={handleCreateClass}
+                    className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-200"
+                  >
+                    학급 생성 완료
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Add Student Modal */}
       {showAddModal && (
@@ -328,7 +568,7 @@ const TeacherDashboard: React.FC<Props> = ({ user, onLogout }) => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-gray-500 mb-1">출석 번호</label>
-                <input 
+                <input
                   type="number"
                   className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl font-bold"
                   placeholder="26"
@@ -338,7 +578,7 @@ const TeacherDashboard: React.FC<Props> = ({ user, onLogout }) => {
               </div>
               <div>
                 <label className="block text-sm font-bold text-gray-500 mb-1">이름</label>
-                <input 
+                <input
                   type="text"
                   className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl font-bold"
                   placeholder="홍길동"
@@ -349,13 +589,13 @@ const TeacherDashboard: React.FC<Props> = ({ user, onLogout }) => {
               <p className="text-xs text-gray-400 leading-relaxed italic">* 초기 비밀번호는 0000으로 설정되며 학생이 첫 로그인 시 변경하게 됩니다.</p>
             </div>
             <div className="mt-8 flex gap-3">
-              <button 
+              <button
                 onClick={() => setShowAddModal(false)}
                 className="flex-1 py-3 bg-gray-100 text-gray-500 rounded-xl font-bold"
               >
                 취소
               </button>
-              <button 
+              <button
                 onClick={addStudent}
                 className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-200"
               >

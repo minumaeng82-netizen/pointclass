@@ -1,8 +1,8 @@
 
-import { 
-  User, Class, Session, Attendance, PreRoutine, Warning, 
-  MissionResult, PointRecord, Question, Answer, QuizItem, 
-  QuizResponse, StoreItem, ClaimRequest 
+import {
+  User, Class, Session, Attendance, PreRoutine, Warning,
+  MissionResult, PointRecord, Question, Answer, QuizItem,
+  QuizResponse, StoreItem, ClaimRequest
 } from './types';
 
 // Mock Initial Data
@@ -45,46 +45,47 @@ const save = <T,>(key: string, data: T) => {
 };
 
 export const ScienceStore = {
-  getClasses: () => INITIAL_CLASSES,
-  
+  getClasses: () => load<Class[]>('classes', INITIAL_CLASSES),
+  saveClasses: (classes: Class[]) => save('classes', classes),
+
   getStudents: (classId?: string) => {
     const students = load<User[]>('students', DEFAULT_STUDENTS);
     return classId ? students.filter(s => s.classId === classId) : students;
   },
   saveStudents: (students: User[]) => save('students', students),
-  
+
   getSessions: () => load<Session[]>('sessions', []),
   saveSessions: (sessions: Session[]) => save('sessions', sessions),
-  
+
   getActiveSession: (classId: string) => load<Session[]>('sessions', []).find(s => s.classId === classId && s.status === 'active'),
-  
+
   getAttendances: () => load<Attendance[]>('attendances', []),
   saveAttendances: (attendances: Attendance[]) => save('attendances', attendances),
-  
+
   getPreRoutines: () => load<PreRoutine[]>('preRoutines', []),
   savePreRoutines: (routines: PreRoutine[]) => save('preRoutines', routines),
-  
+
   getWarnings: () => load<Warning[]>('warnings', []),
   saveWarnings: (warnings: Warning[]) => save('warnings', warnings),
-  
+
   getPoints: () => load<PointRecord[]>('points', []),
   savePoints: (points: PointRecord[]) => save('points', points),
-  
+
   getQuestions: () => load<Question[]>('questions', []),
   saveQuestions: (questions: Question[]) => save('questions', questions),
-  
+
   getAnswers: () => load<Answer[]>('answers', []),
   saveAnswers: (answers: Answer[]) => save('answers', answers),
-  
+
   getQuizItems: () => INITIAL_QUIZ,
   getQuizResponses: () => load<QuizResponse[]>('quizResponses', []),
   saveQuizResponses: (res: QuizResponse[]) => save('quizResponses', res),
-  
+
   getMissionResults: () => load<MissionResult[]>('missionResults', []),
   saveMissionResults: (res: MissionResult[]) => save('missionResults', res),
-  
+
   getStoreItems: () => INITIAL_STORE,
-  
+
   getClaims: () => load<ClaimRequest[]>('claims', []),
   saveClaims: (claims: ClaimRequest[]) => save('claims', claims),
 };
